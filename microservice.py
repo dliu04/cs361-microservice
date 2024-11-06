@@ -1,6 +1,9 @@
+from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
+
+app = Flask(__name__)
 
 def search_genius(artist, song):
     query = f"{artist} {song} Genius"
@@ -26,7 +29,6 @@ def search_genius(artist, song):
 def scrape_lyrics(genius_url):
     response = requests.get(genius_url)
     response.raise_for_status()
-
     soup = BeautifulSoup(response.text, 'html.parser')
     
     # Find all lyrics containers
@@ -35,35 +37,28 @@ def scrape_lyrics(genius_url):
     if lyrics_containers:
         # Print the first container's lyrics
         first_lyrics = lyrics_containers[0].get_text(separator="\n").strip()
-        print(f"\n{first_lyrics.strip()}\n")  # Print first container lyrics
-
-        # Ask if the user wants to see the rest of the lyrics
-        view_more = input("Would you like to see the rest of the lyrics? (yes/no): ").strip().lower()
-
-        if view_more == 'yes':
-            combined_lyrics = []
-            for container in lyrics_containers:
-                # Get the text of the lyrics and strip unnecessary whitespace
-                lyrics = container.get_text(separator="\n").strip()
-                combined_lyrics.append(lyrics)
-
-            # Join all the lyrics without adding extra line breaks
-            formatted_lyrics = "\n".join(combined_lyrics)
-            print(f"\n{formatted_lyrics.strip()}\n")  # Print all lyrics
-        else:
-            print("Okay, have a great day!")
+        return first_lyrics
     else:
-        print("No lyrics containers found.")
+        return "No lyrics containers found."
 
-def main():
-    artist = input("Enter the artist name: ")
-    song = input("Enter the song name: ")
+@app.route('/search_genius', methods=['GET'])
+def search_genius_endpoint():
+    artist = request.args.get('artist')
+    song = request.args.get('song')
+    if not artist or not song:
+        return jsonify({"error": "Missing artist or song parameter"}), 400
     
-    genius_url = search_genius(artist, song)
-    if genius_url:
-        scrape_lyrics(genius_url)
-    else:
-        print("Could not find the song.")
+    link = search_genius(artist, song)
+    return jsonify({"genius_link": link})
 
-if __name__ == "__main__":
-    main()
+@app.route('/scrape_lyrics', methods=['GET'])
+def scrape_lyrics_endpoint():
+    genius_url = request.args.get('genius_url')
+    if not genius_url:
+        return jsonify({"error": "Missing genius_url parameter"}), 400
+    
+    lyrics = scrape_lyrics(genius_url)
+    return jsonify({"lyrics": lyrics})
+
+if __name__ == '__main__':
+    app.run(debug=True)
